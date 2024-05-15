@@ -1,0 +1,10 @@
+commands:
+  image-tools:
+    description: xxx
+    options:
+      option1: xxx
+    messages:
+      message1: xxx
+
+_config:
+  image-toolsConfig1: xxx
