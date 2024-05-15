@@ -1,10 +1,10 @@
 commands:
   image-tools:
-    description: xxx
-    options:
-      option1: xxx
-    messages:
-      message1: xxx
+    description: 简单图片操作
 
-_config:
-  image-toolsConfig1: xxx
+image-tools:
+  errors:
+    missing-image: 缺失图片参数。
+    fetch-image-failed: 下载图片失败。
+    invalid-image: 图片文件损坏。
+    image-must-animated: 图片必须为动图。

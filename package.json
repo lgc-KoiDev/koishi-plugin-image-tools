@@ -22,7 +22,10 @@
       "zh": "简单图片操作 Koishi 复刻版"
     },
     "service": {
-      "required": [],
+      "required": [
+        "http",
+        "canvas"
+      ],
       "optional": [],
       "implements": []
     },
@@ -33,6 +36,12 @@
   "peerDependencies": {
     "koishi": "^4.17.6"
   },
-  "devDependencies": {},
-  "dependencies": {}
+  "dependencies": {
+    "image-in-browser": "^2.6.0",
+    "omggif": "^1.0.10"
+  },
+  "devDependencies": {
+    "@koishijs/canvas": "^0.2.0",
+    "@types/omggif": "^1"
+  }
 }
