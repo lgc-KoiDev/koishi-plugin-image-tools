@@ -1,44 +1,54 @@
-import type CanvasService from '@koishijs/canvas'
-import type { Canvas, Image } from '@koishijs/canvas'
 import {
   ChannelOrder,
-  decodeImageByMimeType,
-  decodePng,
   Draw,
-  encodeGif,
-  encodePng,
+  Filter,
   MemoryImage,
   Transform,
+  decodeImageByMimeType,
+  decodePng,
+  encodeGif,
+  encodePng,
 } from 'image-in-browser'
-import { HTTP } from 'koishi'
+import { Command, HTTP } from 'koishi'
 import { GifReader } from 'omggif'
+
+import type CanvasService from '@koishijs/canvas'
+import type { Canvas, Image } from '@koishijs/canvas'
+
+// #region command register
 
 export interface ImageCommandBase {
   name: string
   aliases?: string[]
+  args?: any[]
+  options?: Parameters<Command['option']>[]
 }
 
-export interface SingleImageCommand<O = any> extends ImageCommandBase {
+export interface SingleImageCommand extends ImageCommandBase {
   multiImages?: false
   func: (
     image: MemoryImage,
     canvasSv: CanvasService,
-    options: O,
+    options: { args: any[]; options: Record<string, any> },
   ) => Promise<Blob | Blob[]>
 }
 
-export interface MultiImageCommand<O = any> extends ImageCommandBase {
+export interface MultiImageCommand extends ImageCommandBase {
   multiImages: true
   func: (
     images: MemoryImage[],
     canvasSv: CanvasService,
-    options: O,
+    options: { args: any[]; options: Record<string, any> },
   ) => Promise<Blob | Blob[]>
 }
 
-export type ImageCommand<O = any> = SingleImageCommand<O> | MultiImageCommand<O>
+export type ImageCommand = SingleImageCommand | MultiImageCommand
 
 export const registeredCommands: ImageCommand[] = []
+
+// #endregion
+
+// #region helper funcs
 
 export class OperationError extends Error {
   readonly name = 'OperationError'
@@ -173,25 +183,55 @@ export function ensureAnimation(image: MemoryImage): void {
   if (!image.hasAnimation) throw new OperationError('.image-must-animated')
 }
 
+// #endregion
+
+// #region operation funcs
+
 export async function flipHorizontal(image: MemoryImage): Promise<Blob> {
-  Transform.flipHorizontal({ image })
-  return imageSave(image)
+  return imageSave(Transform.flipHorizontal({ image }))
 }
+registeredCommands.push({
+  name: 'flip-h',
+  aliases: ['水平翻转', '左翻', '右翻'],
+  func: flipHorizontal,
+})
 
 export async function flipVertical(image: MemoryImage): Promise<Blob> {
-  Transform.flipVertical({ image })
-  return imageSave(image)
+  return imageSave(Transform.flipVertical({ image }))
 }
+registeredCommands.push({
+  name: 'flip-v',
+  aliases: ['竖直翻转', '上翻', '下翻'],
+  func: flipVertical,
+})
 
 export async function flipBoth(image: MemoryImage): Promise<Blob> {
-  Transform.flipHorizontalVertical({ image })
-  return imageSave(image)
+  return imageSave(Transform.flipHorizontalVertical({ image }))
 }
+registeredCommands.push({
+  name: 'flip',
+  aliases: ['双向翻转'],
+  func: flipBoth,
+})
+
+export async function grayScale(image: MemoryImage): Promise<Blob> {
+  return imageSave(Filter.grayscale({ image }))
+}
+registeredCommands.push({
+  name: 'gray',
+  aliases: ['灰度图', '黑白'],
+  func: grayScale,
+})
 
 export async function gifSplit(image: MemoryImage): Promise<Blob[]> {
   ensureAnimation(image)
   return Promise.all(image.frames.map((x) => imageSavePng(x)))
 }
+registeredCommands.push({
+  name: 'gif-split',
+  aliases: ['gif分解'],
+  func: gifSplit,
+})
 
 export async function gifReverse(image: MemoryImage): Promise<Blob> {
   ensureAnimation(image)
@@ -201,3 +241,10 @@ export async function gifReverse(image: MemoryImage): Promise<Blob> {
   newImage.frames.push(...frames.slice(1, -1).reverse(), firstFrame)
   return imageSave(newImage)
 }
+registeredCommands.push({
+  name: 'gif-reverse',
+  aliases: ['gif倒放', '倒放'],
+  func: gifReverse,
+})
+
+// #endregion
