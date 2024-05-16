@@ -8,6 +8,18 @@ image-tools:
     fetch-image-failed: 下载图片失败。
     invalid-image: 图片文件损坏。
     image-must-animated: 图片必须为动图。
+    zip-failed: 创建压缩文件失败。
 
 _config:
   - $desc: 发送设置
+    sendOneByOne: 在输出图片数量超过 `overflowThreshold` 前时一张一张地发送图片，而不是合并为一条消息。
+    overflowThreshold: 触发 `overflowSendType` 中发送方式的图片数量阈值。
+    overflowSendType:
+      $desc: |-
+        输出图片数量超过 `overflowThreshold` 时发送的方式。  
+        **multi**: 以多条消息的形式发送，每条消息中的图片数量最大为 `overflowThreshold`；  
+        **forward**: 以合并转发消息的形式发送；  
+        **file**: 以压缩包文件的形式发送。
+    oneByOneInForward: 当 `overflowSendType` 为 `forward` 时，在合并转发消息中将每张图片作为一条消息发送，而不是按照每条消息最大图片数量为 `overflowThreshold` 的规则分组。
+    zipFileType: 当 `overflowSendType` 为 `file` 时，使用的压缩文件的类型。
+    useBase64SendFile: 当 `overflowSendType` 为 `file` 时，是否将文件编码为 base64 之后发送，否则直接使用本地文件路径。正常情况下不建议开启。

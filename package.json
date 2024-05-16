@@ -26,7 +26,9 @@
         "http",
         "canvas"
       ],
-      "optional": [],
+      "optional": [
+        "notifier"
+      ],
       "implements": []
     },
     "locales": [
@@ -34,14 +36,18 @@
     ]
   },
   "peerDependencies": {
+    "@cordisjs/element": "^0.1.0",
+    "@koishijs/plugin-notifier": "^1.2.0",
     "koishi": "^4.17.6"
   },
   "dependencies": {
-    "image-in-browser": "^2.6.0",
     "omggif": "^1.0.10"
   },
   "devDependencies": {
     "@koishijs/canvas": "^0.2.0",
-    "@types/omggif": "^1"
+    "@types/omggif": "^1",
+    "@types/uzip": "^0",
+    "image-in-browser": "^2.6.0",
+    "uzip": "^0.20201231.0"
   }
 }
