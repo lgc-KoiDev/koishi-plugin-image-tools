@@ -1,23 +1,36 @@
-import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { MemoryImage } from 'image-in-browser'
-import { Computed, Context, HTTP, Random, Schema, Session, h } from 'koishi'
+import { Command, Computed, Context, HTTP, Schema, Session, h } from 'koishi'
 
+import {
+  AcceptImageCommand,
+  IgnoreImageCommand,
+  ImageCommand,
+  registeredCommands,
+} from './commands'
 import * as ops from './operations'
+import {
+  AvailableZipType,
+  ZIP_MIME_TYPES,
+  chunks,
+  is7zExist,
+  name,
+  tmpDir,
+  zipBlobs,
+} from './utils'
 
 import zhCNLocale from './locales/zh-CN.yml'
 
-import type {} from '@koishijs/canvas'
 import type {} from '@koishijs/plugin-notifier'
+import type {} from '@lgcnpm/koishi-plugin-skia-canvas'
 
-export const name = 'image-tools'
-export const inject = ['http', 'canvas']
+export { name }
+export const inject = ['http', 'skia']
 
-export type AvailableZipType = 'zip' | '7z'
 export interface Config {
   sendOneByOne: Computed<boolean>
   overflowThreshold: Computed<number>
@@ -50,12 +63,6 @@ export const Config: Schema<Config> = Schema.intersect([
   HTTP.createConfig(),
 ])
 
-const ZIP_MIME_TYPES: Record<AvailableZipType, string> = {
-  zip: 'application/zip',
-  '7z': 'application/x-7z-compressed',
-}
-const tmpDir = path.join(process.cwd(), 'temp', name)
-
 export const errorHandle = async <
   R extends h.Fragment,
   F extends () => Promise<R>,
@@ -70,77 +77,6 @@ export const errorHandle = async <
     }
     throw e
   }
-}
-
-export function* chunks<T>(arr: T[], n: number): Generator<T[], void> {
-  for (let i = 0; i < arr.length; i += n) {
-    yield arr.slice(i, i + n)
-  }
-}
-
-export class CommandExecuteError extends Error {
-  readonly name = 'CommandExecuteError'
-
-  constructor(public readonly code: number) {
-    super(`Process exited with code ${code}`)
-  }
-}
-
-export function runCmd(cmd: string[], options?: { cwd: string }) {
-  return new Promise<void>((resolve, reject) => {
-    const proc = spawn(cmd[0], cmd.slice(1), {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      cwd: options?.cwd,
-    })
-    proc.on('error', reject)
-    proc.on('exit', (code: number) => {
-      if (code) reject(new CommandExecuteError(code))
-      else resolve()
-    })
-  })
-}
-
-export async function is7zExist() {
-  try {
-    await runCmd(['7z'])
-    return true
-  } catch (e) {
-    if (e instanceof CommandExecuteError) return false
-    throw e
-  }
-}
-
-export async function zipBlobs(
-  blobs: Blob[],
-  fileType?: AvailableZipType,
-): Promise<string> {
-  const folderId = Random.id()
-  const tmpImagesDir = path.join(tmpDir, folderId)
-  if (!existsSync(tmpImagesDir)) {
-    await mkdir(tmpImagesDir, { recursive: true })
-  }
-  await Promise.all(
-    blobs.map(async (v, i) => {
-      const sfx = v.type.split('/')[1]
-      const tmpPath = path.join(tmpImagesDir, `${i}.${sfx}`)
-      await writeFile(tmpPath, Buffer.from(await v.arrayBuffer()))
-    }),
-  )
-
-  const tmpZipDir = path.join(tmpDir, 'compressed')
-  const tmpZipPath = path.join(
-    tmpZipDir,
-    `${name}-${folderId}.${fileType ?? 'zip'}`,
-  )
-  try {
-    if (!existsSync(tmpZipDir)) {
-      await mkdir(tmpZipDir, { recursive: true })
-    }
-    await runCmd(['7z', 'a', tmpZipPath, '*'], { cwd: tmpImagesDir })
-  } finally {
-    await rm(tmpImagesDir, { recursive: true, force: true })
-  }
-  return tmpZipPath
 }
 
 export async function apply(ctx: Context, config: Config) {
@@ -224,34 +160,46 @@ export async function apply(ctx: Context, config: Config) {
     }
   }
 
-  const registerImageCmd = (imgCmd: ops.ImageCommand) => {
+  const registerImageCmd = (imgCmd: ImageCommand) => {
+    const ignoreImages = 'ignoreImages' in imgCmd && imgCmd.ignoreImages
     const externalArgs =
       imgCmd.args && imgCmd.args.length ? ` ${imgCmd.args.join(' ')}` : ''
-    const subCmd = cmd.subcommand(`${imgCmd.name}${externalArgs} [...rest:el]`)
+    const subCmd = cmd.subcommand(
+      `${imgCmd.name}${externalArgs}${ignoreImages ? '' : ' [elements: el]'}`,
+    )
     if (imgCmd.aliases) {
       subCmd.alias(...imgCmd.aliases)
     }
     if (imgCmd.options) {
       for (const opt of imgCmd.options) subCmd.option(...opt)
     }
-    subCmd.action(({ session, options: cmdOptions }, ...cmdArgs) => {
+    subCmd.action((({ session, options: cmdOptions }, ...cmdArgs) => {
       if (!session) return
-      return errorHandle(async () => {
-        const optArgsLen = imgCmd.args?.length ?? 0
-        // koishi will automatically use quoted message as command arg
-        const imageElements = cmdArgs
-          .slice(optArgsLen)
-          .flatMap((v) => v)
-          .filter((v) => 'src' in v.attrs) as (h & { attrs: { src: string } })[]
-        if (!imageElements.length) {
+      if (!cmdArgs.length) return session.execute(`${imgCmd.name} -h`)
+
+      // koishi will automatically use quoted message as command arg
+      const lastArg = cmdArgs[cmdArgs.length - 1]
+      const lastArgValid = lastArg instanceof Array
+      const args =
+        ignoreImages || !lastArgValid ? cmdArgs : cmdArgs.slice(0, -1)
+      const options = cmdOptions ?? {}
+
+      const handleIgnoreImageCmd = async (imgCmd: IgnoreImageCommand) => {
+        const r = await imgCmd.func(undefined, ctx.skia, { args, options })
+        return blobsToSendable(session, r instanceof Array ? r : [r])
+      }
+
+      const handleAcceptImageCmd = async (imgCmd: AcceptImageCommand) => {
+        const imageArgs = (
+          lastArgValid ? lastArg.filter((v) => 'src' in v.attrs) : []
+        ) as (h & { attrs: { src: string } })[]
+        if (!imageArgs.length) {
           throw new ops.OperationError('.missing-image')
         }
+        const images = await fetchSources(imageArgs.map((v) => v.attrs.src))
 
-        const images = await fetchSources(imageElements.map((v) => v.attrs.src))
-        const args = optArgsLen ? cmdArgs.slice(0, optArgsLen) : []
-        const options = cmdOptions ?? {}
         const processOne = async (v: MemoryImage | MemoryImage[]) => {
-          const r = await imgCmd.func(v as any, ctx.canvas, { args, options })
+          const r = await imgCmd.func(v as any, ctx.skia, { args, options })
           if (r instanceof Array) return r
           return [r]
         }
@@ -261,11 +209,16 @@ export async function apply(ctx: Context, config: Config) {
           )
         ).flatMap((v) => v)
         return blobsToSendable(session, results)
+      }
+
+      return errorHandle(async () => {
+        if (ignoreImages) return handleIgnoreImageCmd(imgCmd)
+        return handleAcceptImageCmd(imgCmd)
       })
-    })
+    }) as Command.Action<never, never, any[]>)
   }
 
-  for (const x of ops.registeredCommands) {
+  for (const x of registeredCommands) {
     registerImageCmd(x)
   }
 

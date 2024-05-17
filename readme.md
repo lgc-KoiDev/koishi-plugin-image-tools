@@ -23,8 +23,8 @@ _✨ 简单图片操作 Koishi 复刻版 ✨_
 <a href="https://www.npmjs.com/package/koishi-plugin-image-tools">
   <img src="https://img.shields.io/npm/dm/koishi-plugin-image-tools" alt="pypi download">
 </a>
-<a href="https://wakatime.com/badge/user/b61b0f9a-f40b-4c82-bc51-0a75c67bfccf/project/c871162c-2c6d-4a99-8de5-c8c8d7d3a0f1">
-  <img src="https://wakatime.com/badge/user/b61b0f9a-f40b-4c82-bc51-0a75c67bfccf/project/c871162c-2c6d-4a99-8de5-c8c8d7d3a0f1.svg" alt="wakatime">
+<a href="https://wakatime.com/badge/user/b61b0f9a-f40b-4c82-bc51-0a75c67bfccf/project/e351a977-c220-415c-9f9e-b4647ed75a48">
+  <img src="https://wakatime.com/badge/user/b61b0f9a-f40b-4c82-bc51-0a75c67bfccf/project/e351a977-c220-415c-9f9e-b4647ed75a48.svg" alt="wakatime">
 </a>
 
 </div>

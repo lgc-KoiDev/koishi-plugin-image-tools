@@ -9,6 +9,13 @@ image-tools:
     invalid-image: 图片文件损坏。
     image-must-animated: 图片必须为动图。
     zip-failed: 创建压缩文件失败。
+    invalid-arg-format: 无效的参数格式。
+    value-too-small: 参数值 {0} 过小，应大于 {1}。
+    value-too-big: 参数值 {0} 过大，应小于 {1}。
+    invalid-range: 参数值 {0} 范围不正确，应在 {1} ~ {2} 之间。
+    invalid-color: 无效的颜色值 {0}。示例：#ffffff；"rgb(255, 255, 255)"。
+    alpha-not-supported: 此操作不支持指定颜色的透明度。
+    invalid-angle: 指定的角度 {0} 无效。
 
 _config:
   - $desc: 发送设置

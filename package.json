@@ -24,7 +24,7 @@
     "service": {
       "required": [
         "http",
-        "canvas"
+        "skia"
       ],
       "optional": [
         "notifier"
@@ -38,16 +38,16 @@
   "peerDependencies": {
     "@cordisjs/element": "^0.1.0",
     "@koishijs/plugin-notifier": "^1.2.0",
+    "@lgcnpm/koishi-plugin-skia-canvas": "workspace:^",
     "koishi": "^4.17.6"
   },
   "dependencies": {
-    "omggif": "^1.0.10"
+    "modern-gif": "^2.0.3"
   },
   "devDependencies": {
-    "@koishijs/canvas": "^0.2.0",
     "@types/omggif": "^1",
     "@types/uzip": "^0",
-    "image-in-browser": "^2.6.0",
+    "image-in-browser": "^2.7.1",
     "uzip": "^0.20201231.0"
   }
 }

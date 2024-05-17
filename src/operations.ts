@@ -1,52 +1,21 @@
 import {
   ChannelOrder,
-  Draw,
+  ColorUtils,
   Filter,
+  Interpolation,
   MemoryImage,
+  Rectangle,
   Transform,
   decodeImageByMimeType,
   decodePng,
-  encodeGif,
   encodePng,
 } from 'image-in-browser'
-import { Command, HTTP } from 'koishi'
-import { GifReader } from 'omggif'
+import { HTTP } from 'koishi'
+import gif from 'modern-gif'
 
-import type CanvasService from '@koishijs/canvas'
-import type { Canvas, Image } from '@koishijs/canvas'
+import { ImageOperationOption } from './commands'
 
-// #region command register
-
-export interface ImageCommandBase {
-  name: string
-  aliases?: string[]
-  args?: any[]
-  options?: Parameters<Command['option']>[]
-}
-
-export interface SingleImageCommand extends ImageCommandBase {
-  multiImages?: false
-  func: (
-    image: MemoryImage,
-    canvasSv: CanvasService,
-    options: { args: any[]; options: Record<string, any> },
-  ) => Promise<Blob | Blob[]>
-}
-
-export interface MultiImageCommand extends ImageCommandBase {
-  multiImages: true
-  func: (
-    images: MemoryImage[],
-    canvasSv: CanvasService,
-    options: { args: any[]; options: Record<string, any> },
-  ) => Promise<Blob | Blob[]>
-}
-
-export type ImageCommand = SingleImageCommand | MultiImageCommand
-
-export const registeredCommands: ImageCommand[] = []
-
-// #endregion
+import type { Canvas, Image, Skia } from '@lgcnpm/koishi-plugin-skia-canvas'
 
 // #region helper funcs
 
@@ -60,68 +29,73 @@ export class OperationError extends Error {
   ) {
     if (i18nPath.startsWith('.')) {
       i18nPath = `image-tools.errors${i18nPath}`
+    } else if (i18nPath.startsWith('^')) {
+      i18nPath = i18nPath.replace('^', '.')
     }
     super(i18nPath)
     this.i18nPath = i18nPath
   }
 }
 
-export async function readGifRawFrames(buf: Uint8Array): Promise<MemoryImage> {
-  const reader = new GifReader(buf)
-  const { width, height } = reader
-  const loopCount = reader.loopCount()
-  const frameCount = reader.numFrames()
-  if (!frameCount) {
-    throw new TypeError('gif has no frames')
-  }
+export async function readGif(buf: ArrayBuffer): Promise<MemoryImage> {
+  const gifFile = gif.decode(buf)
+  const frames = gif.decodeFrames(buf, { gif: gifFile })
+  if (!frames.length) throw new TypeError('gif has no frames')
   let image: MemoryImage | null = null
-  for (let i = 0; i < frameCount; i++) {
-    const raw = Buffer.alloc(width * height * 4)
-    reader.decodeAndBlitFrameRGBA(i, raw)
-    const info = reader.frameInfo(i)
+  for (const { width, height, delay, data } of frames) {
     const frame = MemoryImage.fromBytes({
       width,
       height,
-      bytes: raw.buffer,
+      frameDuration: delay,
+      bytes: data,
       channelOrder: ChannelOrder.rgba,
-      frameDuration: info.delay * 10,
     })
-    if (!image) {
-      frame.loopCount = loopCount
-      image = frame
-    } else {
+    if (image) {
       image.addFrame(frame)
+    } else {
+      image = frame
     }
   }
   return image!
 }
 
-export async function readGif(data: Uint8Array): Promise<MemoryImage> {
-  const image = await readGifRawFrames(data)
-  const { frames } = image
-  const lastCombinedFrame = MemoryImage.from(image, true)
-  const finalImage = lastCombinedFrame.clone()
-  for (let i = 1; i < frames.length; i += 1) {
-    const frame = frames[i]
-    Draw.compositeImage({ src: frame, dst: lastCombinedFrame })
-    const cloned = lastCombinedFrame.clone()
-    cloned.frameDuration = frame.frameDuration
-    finalImage.addFrame(cloned)
-  }
-  return finalImage
-}
-
 export async function readImage(http: HTTP, src: string): Promise<MemoryImage> {
   const blob = await http.get(src, { responseType: 'blob' })
-  const data = new Uint8Array(await blob.arrayBuffer())
-  if (blob.type === 'image/gif') return readGif(data)
-  const img = decodeImageByMimeType({ data, mimeType: blob.type })
+  const buf = await blob.arrayBuffer()
+  if (blob.type === 'image/gif') return readGif(buf)
+  const img = decodeImageByMimeType({
+    data: new Uint8Array(buf),
+    mimeType: blob.type,
+  })
   if (!img) throw new TypeError('decode image failed')
   return img
 }
 
+export async function imageSavePng(image: MemoryImage): Promise<Blob> {
+  const b = encodePng({ image, singleFrame: true })
+  return new Blob([b], { type: 'image/png' })
+}
+
+export async function imageSaveGif(image: MemoryImage): Promise<Blob> {
+  const { width, height } = image
+  return gif.encode({
+    format: 'blob',
+    width,
+    height,
+    frames: image.frames.map((f) => ({
+      data: f.getBytes({ order: ChannelOrder.rgba })!,
+      delay: f.frameDuration,
+    })),
+  })
+}
+
+export async function imageSave(image: MemoryImage): Promise<Blob> {
+  if (image.hasAnimation) return imageSaveGif(image)
+  return imageSavePng(image)
+}
+
 export async function canvasSavePng(canvas: Canvas): Promise<Blob> {
-  return new Blob([await canvas.toBuffer('image/png')], { type: 'image/png' })
+  return new Blob([await canvas.toBuffer('png')], { type: 'image/png' })
 }
 
 export async function canvasSaveGif(
@@ -130,7 +104,7 @@ export async function canvasSaveGif(
   if (!canvasList.length) throw new Error('Empty canvasList')
   const [frame0, ...restFrames] = await Promise.all(
     canvasList.map(async ([c]) => {
-      const r = decodePng({ data: await c.toBuffer('image/png') })
+      const r = decodePng({ data: await c.toBuffer('png') })
       if (!r) throw TypeError('invalid image')
       return r
     }),
@@ -141,33 +115,17 @@ export async function canvasSaveGif(
     frame.frameDuration = frameDuration
     frame0.addFrame(frame)
   }
-  const bytes = encodeGif({ image: frame0 })
-  return new Blob([bytes], { type: 'image/gif' })
-}
-
-export async function imageSavePng(image: MemoryImage): Promise<Blob> {
-  const b = encodePng({ image, singleFrame: true })
-  return new Blob([b], { type: 'image/png' })
-}
-
-export async function imageSaveGif(image: MemoryImage): Promise<Blob> {
-  const b = encodeGif({ image })
-  return new Blob([b], { type: 'image/gif' })
-}
-
-export async function imageSave(image: MemoryImage): Promise<Blob> {
-  if (image.hasAnimation) return imageSaveGif(image)
-  return imageSavePng(image)
+  return imageSaveGif(frame0)
 }
 
 export async function gifHelper(
-  sv: CanvasService,
+  sv: Skia,
   image: MemoryImage,
   process: (img: Image) => Promise<Canvas>,
 ): Promise<Blob> {
   const processFrame = async (frameRaw: MemoryImage) => {
     const b = encodePng({ image: frameRaw, singleFrame: true })
-    const img = await sv.loadImage(b)
+    const img = await sv.loadImage(Buffer.from(b))
     return process(img)
   }
   const frameCanvases = await Promise.all(
@@ -183,6 +141,354 @@ export function ensureAnimation(image: MemoryImage): void {
   if (!image.hasAnimation) throw new OperationError('.image-must-animated')
 }
 
+export function matchRegExps<
+  T,
+  R extends RegExp = RegExp,
+  F extends (r: RegExpExecArray) => T = (r: RegExpExecArray) => T,
+>(str: string, regexps: (readonly [R, F])[]): T {
+  for (const [r, f] of regexps) {
+    const m = r.exec(str)
+    if (!m) continue
+    return f(m)
+  }
+  throw new OperationError('.invalid-arg-format')
+}
+
+export const getSizeMatchReg = (width: number, height: number) =>
+  [
+    /^(?<w>(\d{1,4})?)[*xX, ](?<h>(\d{1,4})?)$/,
+    (res: RegExpExecArray): [number, number] => {
+      const { w, h } = res.groups!
+      const wN = w ? parseInt(w) : width
+      const hN = h ? parseInt(h) : height
+      if (wN <= 0 || hN <= 0) throw new OperationError('.invalid-arg-format')
+      return [wN, hN]
+    },
+  ] as const
+export const getPercentMatchReg = (width: number, height: number) =>
+  [
+    /^(?<p>\d{1,3})%$/,
+    (res: RegExpExecArray): [number, number] => {
+      const p = parseInt(res.groups!.p)
+      if (p <= 0) throw new OperationError('.invalid-arg-format')
+      const pp = p / 100
+      return [Math.floor(width * pp), Math.floor(height * pp)]
+    },
+  ] as const
+export const getRatioMatchReg = (width: number, height: number) =>
+  [
+    /^(?<pw>\d{1,2})[:：比](?<ph>\d{1,2})$/,
+    (res: RegExpExecArray): [number, number] => {
+      const pw = parseInt(res.groups!.pw)
+      const ph = parseInt(res.groups!.ph)
+      if (pw <= 0 || ph <= 0) throw new OperationError('.invalid-arg-format')
+      const size = Math.min(width / pw, width / ph)
+      return [Math.floor(pw * size), Math.floor(ph * size)]
+    },
+  ] as const
+
+export type RGBColorTuple = [number, number, number]
+export type RGBAColorTuple = [number, number, number, number]
+export type ColorTuple = RGBColorTuple | RGBAColorTuple
+
+export function RGBA2RGB(rgba: RGBAColorTuple): RGBColorTuple {
+  return rgba.slice(0, 3) as any
+}
+
+export function RGB2RGBA(rgb: RGBColorTuple): RGBAColorTuple {
+  return [...rgb, 255]
+}
+
+export function colorTupleToWebColor(color: ColorTuple): string {
+  if (color.length === 4) {
+    return `rgba(${[...color.slice(0, 3), color[3] / 255].join(', ')})`
+  }
+  return `rgb(${color.join(', ')})`
+}
+
+export function parseColor(color: string): RGBAColorTuple {
+  const hexColorReg = /^#?(?<hex>(?:[0-9a-fA-F]{3,4}){1,2})$/
+  const matchHex = hexColorReg.exec(color)
+  if (matchHex) {
+    const { hex } = matchHex.groups!
+    if (hex.length < 6) {
+      const parseOneCharHex = (hex: string) => parseInt(hex.repeat(2), 16)
+      return [
+        parseOneCharHex(hex[0]),
+        parseOneCharHex(hex[1]),
+        parseOneCharHex(hex[2]),
+        hex.length === 4 ? parseOneCharHex(hex[3]) : 255,
+      ]
+    }
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255,
+    ]
+  }
+
+  const rgbColorReg =
+    /^(rgba?)?\(?(?<r>\d{1,3})[,\s](?<g>\d{1,3})[,\s](?<b>\d{1,3})([,\s](?<a>\d{1,3}(\.\d)?))?\)?$/
+  const matchRgb = rgbColorReg.exec(color)
+  if (matchRgb) {
+    const checkVal = (val: number) => {
+      if (val < 0 || val > 255) {
+        throw new OperationError('.invalid-color', [color])
+      }
+      return val
+    }
+    const parsedA = matchRgb.groups!.a ? parseFloat(matchRgb.groups!.a) : null
+    return [
+      checkVal(parseInt(matchRgb.groups!.r)),
+      checkVal(parseInt(matchRgb.groups!.g)),
+      checkVal(parseInt(matchRgb.groups!.b)),
+      parsedA ? checkVal(parsedA < 1 ? parsedA * 255 : parsedA) : 255,
+    ]
+  }
+
+  throw new OperationError('.invalid-color', [color])
+}
+
+export function parseAngle(angle: string): number {
+  if (['上下', '竖直'].includes(angle)) return 90
+  if (['左右', '水平'].includes(angle)) return 0
+  const num = parseInt(angle)
+  if (!Number.isNaN(num) && num >= 0 && num <= 360) return num
+  throw new OperationError('.invalid-angle', [angle])
+}
+
+export interface CheckSizeOptions {
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
+  defaultWidth?: number
+  defaultHeight?: number
+}
+export function checkSize(
+  width: number | undefined,
+  height: number | undefined,
+  options?: CheckSizeOptions,
+): [number, number] {
+  width ??= options?.defaultWidth ?? 500
+  height ??= options?.defaultHeight ?? 500
+  const minWidth = options?.minWidth ?? 1
+  const minHeight = options?.minHeight ?? 1
+  const maxWidth = options?.maxWidth ?? 1920
+  const maxHeight = options?.maxHeight ?? 1920
+  if (width < minWidth || width > maxWidth) {
+    throw new OperationError('.invalid-range', [width, minWidth, maxWidth])
+  }
+  if (height < minHeight || height > maxHeight) {
+    throw new OperationError('.invalid-range', [height, minHeight, maxHeight])
+  }
+  return [width, height]
+}
+
+// gpt
+export function calcGradientLinePos(
+  angleDeg: number,
+  width: number,
+  height: number,
+): [number, number, number, number] {
+  const angleRad = (angleDeg * Math.PI) / 180
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+
+  // Calculate the endpoints of the gradient line
+  let x0, y0, x1, y1
+
+  // Determine the positions based on angle
+  if (angleDeg % 180 === 0) {
+    // Horizontal lines
+    x0 = -halfWidth
+    x1 = halfWidth
+    y0 = y1 = 0
+  } else if (angleDeg % 180 === 90) {
+    // Vertical lines
+    y0 = -halfHeight
+    y1 = halfHeight
+    x0 = x1 = 0
+  } else {
+    // Diagonal lines, we need to find intersection points
+    const tanAngle = Math.tan(angleRad)
+    const interceptWidth = halfWidth * tanAngle
+    const interceptHeight = halfHeight / tanAngle
+
+    if (angleDeg > 0 && angleDeg < 180) {
+      x0 = -halfWidth
+      y0 = -interceptWidth
+      x1 = halfWidth
+      y1 = interceptWidth
+    } else {
+      x0 = halfWidth
+      y0 = -interceptWidth
+      x1 = -halfWidth
+      y1 = interceptWidth
+    }
+
+    if (Math.abs(tanAngle) > height / width) {
+      if (angleDeg < 90 || (angleDeg > 180 && angleDeg < 270)) {
+        x0 = interceptHeight
+        y0 = -halfHeight
+        x1 = -interceptHeight
+        y1 = halfHeight
+      } else {
+        x0 = -interceptHeight
+        y0 = halfHeight
+        x1 = interceptHeight
+        y1 = -halfHeight
+      }
+    }
+  }
+
+  return [x0 + halfWidth, y0 + halfHeight, x1 + halfWidth, y1 + halfHeight]
+}
+
+// gpt & bing
+export function usePillowFilter(
+  image: MemoryImage,
+  range: [number, number],
+  div: number,
+  offset: number,
+  kernel: number[][],
+) {
+  const { width, height } = image
+  const [kxTotal, kyTotal] = range
+
+  if (kxTotal % 2 !== 1 || kyTotal % 2 !== 1) {
+    throw new TypeError('Invalid kernel range')
+  }
+
+  const kxHalf = Math.floor(kxTotal / 2)
+  const kyHalf = Math.floor(kyTotal / 2)
+
+  const procColorVal = (val: number) =>
+    Math.max(0, Math.min(255, Math.round(val / div + offset)))
+
+  const processFrame = (frame: MemoryImage) => {
+    const newImage = new MemoryImage({
+      width,
+      height,
+      frameDuration: frame.frameDuration,
+      numChannels: 4,
+    })
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const a = frame.getPixel(x, y).a
+        if (!a) {
+          newImage.setPixelRgba(x, y, 0, 0, 0, 0)
+          continue
+        }
+
+        let r = 0
+        let g = 0
+        let b = 0
+        for (let ky = -kyHalf; ky <= kyHalf; ky++) {
+          for (let kx = -kxHalf; kx <= kxHalf; kx++) {
+            const na = frame.getPixel(x, y).aNormalized
+            if (!na) continue
+            const nx = x + kx
+            const ny = y + ky
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+              const pixel = frame.getPixel(nx, ny)
+              const weight = kernel[ky + kyHalf][kx + kxHalf]
+              r += pixel.r * na * weight
+              g += pixel.g * na * weight
+              b += pixel.b * na * weight
+            }
+          }
+        }
+        newImage.setPixelRgba(
+          x,
+          y,
+          procColorVal(r),
+          procColorVal(g),
+          procColorVal(b),
+          a,
+        )
+      }
+    }
+    return newImage
+  }
+
+  const newImage = processFrame(image)
+  for (const f of image.frames.slice(1)) {
+    newImage.addFrame(processFrame(f))
+  }
+  return newImage
+}
+
+// gpt
+export function colorMaskPilUtils(
+  image: MemoryImage,
+  color: [number, number, number],
+) {
+  const { width, height } = image
+  const [r, g, b] = color
+  const rgbSum = r + g + b
+
+  const processFrame = (frame: MemoryImage) => {
+    const newImage = new MemoryImage({
+      width,
+      height,
+      frameDuration: image.frameDuration,
+      numChannels: 4,
+    })
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixel = frame.getPixel(x, y)
+        if (!pixel.a) {
+          newImage.setPixelRgba(x, y, 0, 0, 0, 0)
+          continue
+        }
+        // Calculate new color based on grayValue and target color
+        const grayValue = ColorUtils.getLuminanceRgb(pixel.r, pixel.g, pixel.b)
+        const newColor: [number, number, number] = rgbSum
+          ? [
+              Math.round((grayValue * r) / rgbSum),
+              Math.round((grayValue * g) / rgbSum),
+              Math.round((grayValue * b) / rgbSum),
+            ]
+          : [0, 0, 0]
+        newImage.setPixelRgba(x, y, ...newColor, pixel.a)
+      }
+    }
+
+    // Convert the new image to HSL and adjust hue
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixel = newImage.getPixel(x, y)
+        if (!pixel.a) {
+          newImage.setPixelRgba(x, y, 0, 0, 0, 0)
+          continue
+        }
+        const [h, s] = ColorUtils.rgbToHsl(pixel.r, pixel.g, pixel.b)
+        const originalPixel = frame.getPixel(x, y)
+        const [, , originalL] = ColorUtils.rgbToHsl(
+          originalPixel.r,
+          originalPixel.g,
+          originalPixel.b,
+        )
+        // Combine the new hue with the original lightness and saturation
+        const [newR, newG, newB] = ColorUtils.hslToRgb(h, s, originalL)
+        newImage.setPixelRgb(x, y, newR, newG, newB)
+      }
+    }
+
+    return newImage
+  }
+
+  const newImage = processFrame(image)
+  for (const f of image.frames.slice(1)) {
+    newImage.addFrame(processFrame(f))
+  }
+  return newImage
+}
+
 // #endregion
 
 // #region operation funcs
@@ -190,48 +496,202 @@ export function ensureAnimation(image: MemoryImage): void {
 export async function flipHorizontal(image: MemoryImage): Promise<Blob> {
   return imageSave(Transform.flipHorizontal({ image }))
 }
-registeredCommands.push({
-  name: 'flip-h',
-  aliases: ['水平翻转', '左翻', '右翻'],
-  func: flipHorizontal,
-})
 
 export async function flipVertical(image: MemoryImage): Promise<Blob> {
   return imageSave(Transform.flipVertical({ image }))
 }
-registeredCommands.push({
-  name: 'flip-v',
-  aliases: ['竖直翻转', '上翻', '下翻'],
-  func: flipVertical,
-})
 
 export async function flipBoth(image: MemoryImage): Promise<Blob> {
   return imageSave(Transform.flipHorizontalVertical({ image }))
 }
-registeredCommands.push({
-  name: 'flip',
-  aliases: ['双向翻转'],
-  func: flipBoth,
-})
 
 export async function grayScale(image: MemoryImage): Promise<Blob> {
   return imageSave(Filter.grayscale({ image }))
 }
-registeredCommands.push({
-  name: 'gray',
-  aliases: ['灰度图', '黑白'],
-  func: grayScale,
-})
 
-export async function gifSplit(image: MemoryImage): Promise<Blob[]> {
-  ensureAnimation(image)
-  return Promise.all(image.frames.map((x) => imageSavePng(x)))
+export async function rotate(
+  image: MemoryImage,
+  _: Skia,
+  { args: [angle] }: ImageOperationOption<[number]>,
+): Promise<Blob> {
+  return imageSave(
+    Transform.copyRotate({ image, angle, interpolation: Interpolation.cubic }),
+  )
 }
-registeredCommands.push({
-  name: 'gif-split',
-  aliases: ['gif分解'],
-  func: gifSplit,
-})
+
+export async function resize(
+  image: MemoryImage,
+  _: Skia,
+  { args: [size] }: ImageOperationOption<[string]>,
+): Promise<Blob> {
+  const { width: iw, height: ih } = image
+  const [width, height] = matchRegExps<[number, number]>(size, [
+    getSizeMatchReg(iw, ih),
+    getPercentMatchReg(iw, ih),
+  ])
+  return imageSave(
+    Transform.copyResize({
+      image,
+      width,
+      height,
+      interpolation:
+        (width ? width <= iw : true) && (height ? height <= ih : true)
+          ? Interpolation.nearest
+          : Interpolation.cubic,
+    }),
+  )
+}
+
+export async function crop(
+  image: MemoryImage,
+  _: Skia,
+  { args: [size] }: ImageOperationOption<[string]>,
+): Promise<Blob> {
+  const { width: iw, height: ih } = image
+  const [width, height] = matchRegExps<[number, number]>(size, [
+    getSizeMatchReg(iw, ih),
+    getRatioMatchReg(iw, ih),
+  ])
+  const x = width > iw ? 0 : (iw - width) / 2
+  const y = height > ih ? 0 : (ih - height) / 2
+  return imageSave(
+    Transform.copyCrop({
+      image,
+      rect: Rectangle.fromXYWH(x, y, width, height),
+      antialias: true,
+    }),
+  )
+}
+
+export async function invert(image: MemoryImage): Promise<Blob> {
+  return imageSave(Filter.invert({ image }))
+}
+
+export async function contour(image: MemoryImage): Promise<Blob> {
+  return imageSave(
+    Filter.convolution({
+      image,
+      div: 1,
+      offset: 255,
+      // prettier-ignore
+      filter: [
+        -1, -1, -1,
+        -1, 8, -1,
+        -1, -1, -1,
+      ],
+    }),
+  )
+}
+
+export async function emboss(image: MemoryImage): Promise<Blob> {
+  return imageSave(
+    Filter.convolution({
+      image,
+      div: 1,
+      offset: 128,
+      // prettier-ignore
+      filter: [
+        -1, 0, 0,
+        0, 1, 0,
+        0, 0, 0,
+      ],
+    }),
+  )
+}
+
+export async function blur(
+  image: MemoryImage,
+  _: Skia,
+  { options: { radius } }: ImageOperationOption<any[], { radius?: number }>,
+): Promise<Blob> {
+  if (radius && radius < 0) {
+    throw new OperationError('.value-too-small', [radius, 0])
+  }
+  return imageSave(Filter.gaussianBlur({ image, radius: radius ?? 5 }))
+}
+
+export async function sharpen(image: MemoryImage): Promise<Blob> {
+  return imageSave(
+    Filter.convolution({
+      image,
+      div: 16,
+      offset: 0,
+      // prettier-ignore
+      filter: [
+        -2, -2, -2,
+        -2, 32, -2,
+        -2, -2, -2,
+      ],
+    }),
+  )
+}
+
+export async function pixelate(
+  image: MemoryImage,
+  _: Skia,
+  { options: { size } }: ImageOperationOption<any[], { size?: number }>,
+): Promise<Blob> {
+  if (size && size < 0) {
+    throw new OperationError('.value-too-small', [size, 0])
+  }
+  return imageSave(Filter.pixelate({ image, size: size ?? 8 }))
+}
+
+export async function colorMask(
+  image: MemoryImage,
+  _: Skia,
+  { args: [color] }: ImageOperationOption<[string]>,
+): Promise<Blob> {
+  const colorTuple = parseColor(color)
+  if (colorTuple[3] !== 255) throw new OperationError('.alpha-not-supported')
+  return imageSave(colorMaskPilUtils(image, RGBA2RGB(colorTuple)))
+}
+
+export async function colorImage(
+  _: any,
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  skia: Skia,
+  {
+    args: [color],
+    options: { width, height },
+  }: ImageOperationOption<[string], { width?: number; height?: number }>,
+): Promise<Blob> {
+  const colorTuple = parseColor(color)
+  ;[width, height] = checkSize(width, height)
+  const canvas = new skia.Canvas(width, height)
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = colorTupleToWebColor(colorTuple)
+  ctx.fillRect(0, 0, width, height)
+  return canvasSavePng(canvas)
+}
+
+export async function gradientImage(
+  _: any,
+  skia: Skia,
+  {
+    args: colors,
+    options: { angle, width, height },
+  }: ImageOperationOption<
+    string[],
+    { angle?: string; width?: number; height?: number }
+  >,
+): Promise<Blob> {
+  const colorStrings = colors.map(parseColor).map(colorTupleToWebColor)
+  ;[width, height] = checkSize(width, height)
+  const angleDeg = angle ? parseAngle(angle) : 0
+  const canvas = new skia.Canvas(width, height)
+  const ctx = canvas.getContext('2d')
+  const gradient = ctx.createLinearGradient(
+    ...calcGradientLinePos(angleDeg, width, height),
+  )
+  const colorLen = colorStrings.length
+  for (let i = 0; i < colorLen; i++) {
+    gradient.addColorStop(i / (colorLen - 1), colorStrings[i])
+  }
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, width, height)
+  return canvasSavePng(canvas)
+}
 
 export async function gifReverse(image: MemoryImage): Promise<Blob> {
   ensureAnimation(image)
@@ -241,10 +701,17 @@ export async function gifReverse(image: MemoryImage): Promise<Blob> {
   newImage.frames.push(...frames.slice(1, -1).reverse(), firstFrame)
   return imageSave(newImage)
 }
-registeredCommands.push({
-  name: 'gif-reverse',
-  aliases: ['gif倒放', '倒放'],
-  func: gifReverse,
-})
+
+export async function gifObverseReverse(image: MemoryImage): Promise<Blob> {
+  ensureAnimation(image)
+  const { frames } = image
+  image.frames.push(...frames.slice(1, -1).reverse())
+  return imageSave(image)
+}
+
+export async function gifSplit(image: MemoryImage): Promise<Blob[]> {
+  ensureAnimation(image)
+  return Promise.all(image.frames.map((x) => imageSavePng(x)))
+}
 
 // #endregion
