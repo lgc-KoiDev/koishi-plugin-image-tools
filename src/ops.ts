@@ -1,4 +1,6 @@
 import {
+  ColorRgba8,
+  Draw,
   Filter,
   Interpolation,
   MemoryImage,
@@ -122,9 +124,7 @@ export async function blur(
   _: Skia,
   { options: { radius } }: ImageOperationOption<any[], { radius?: number }>,
 ): Promise<Blob> {
-  if (radius && radius < 0) {
-    throw new ou.OperationError('.value-too-small', [radius, 0])
-  }
+  ou.ensureBigger(radius, 0)
   return ou.imageSave(Filter.gaussianBlur({ image, radius: radius ?? 5 }))
 }
 
@@ -149,9 +149,7 @@ export async function pixelate(
   _: Skia,
   { options: { size } }: ImageOperationOption<any[], { size?: number }>,
 ): Promise<Blob> {
-  if (size && size < 0) {
-    throw new ou.OperationError('.value-too-small', [size, 0])
-  }
+  ou.ensureBigger(size, 0)
   return ou.imageSave(Filter.pixelate({ image, size: size ?? 8 }))
 }
 
@@ -168,7 +166,7 @@ export async function colorMask(
 export async function colorImage(
   _: any,
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  skia: Skia,
+  __: Skia,
   {
     args: [color],
     options: { width, height },
@@ -176,11 +174,9 @@ export async function colorImage(
 ): Promise<Blob> {
   const colorTuple = ou.parseColor(color)
   ;[width, height] = ou.checkSize(width, height)
-  const canvas = new skia.Canvas(width, height)
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = ou.colorTupleToWebColor(colorTuple)
-  ctx.fillRect(0, 0, width, height)
-  return ou.canvasSavePng(canvas)
+  const image = new MemoryImage({ width, height, numChannels: 4 })
+  image.clear(new ColorRgba8(...colorTuple))
+  return ou.imageSave(image)
 }
 
 export async function gradientImage(
@@ -227,7 +223,197 @@ export async function gifObverseReverse(image: MemoryImage): Promise<Blob> {
   return ou.imageSave(image)
 }
 
+export async function gifChangeFps(
+  image: MemoryImage,
+  _: Skia,
+  {
+    args: [fps],
+    options: { force },
+  }: ImageOperationOption<[string], { force?: boolean }>,
+): Promise<Blob> {
+  ou.ensureAnimation(image)
+  const originalFrameTimes = image.frames.map((v) => v.frameDuration)
+  const frameTimes = ou.matchRegExps<number[]>(fps, [
+    [
+      /^(?<x>\d{0,3}\.?\d{1,3})(x|X|倍速?)$/,
+      (match) => {
+        const x = parseFloat(match.groups!.x)
+        return originalFrameTimes.map((v) => Math.round(v / x))
+      },
+    ],
+    [
+      /^(?<p>\d{0,3}\.?\d{1,3})%$/,
+      (match) => {
+        const p = parseFloat(match.groups!.p) / 100
+        return originalFrameTimes.map((v) => Math.round(v / p))
+      },
+    ],
+    [
+      /^(?<fps>\d{0,3}\.?\d{1,3})(fps|FPS)$/,
+      (match) => {
+        const fps = parseFloat(match.groups!.fps)
+        const time = Math.round(1000 / fps)
+        return originalFrameTimes.map(() => time)
+      },
+    ],
+    [
+      /^(?<time>\d{0,3}\.?\d{1,3})(?<m>m)?s$/,
+      (match) => {
+        const time = parseFloat(match.groups!.time)
+        const m = Math.round(match.groups!.m ? time * 1000 : time)
+        return originalFrameTimes.map(() => m)
+      },
+    ],
+  ])
+  if (!force && frameTimes.some((v) => v < 20)) {
+    throw new ou.OperationError('.fps-exceed-range-warn', [
+      (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length).toFixed(2),
+    ])
+  }
+  for (let i = 0; i < frameTimes.length; i += 1) {
+    image.frames[i].frameDuration = frameTimes[i]
+  }
+  return ou.imageSave(image)
+}
+
 export async function gifSplit(image: MemoryImage): Promise<Blob[]> {
   ou.ensureAnimation(image)
   return Promise.all(image.frames.map((x) => ou.imageSavePng(x)))
+}
+
+export async function gifJoin(
+  images: MemoryImage[],
+  _: Skia,
+  {
+    options: { duration, force },
+  }: ImageOperationOption<any[], { duration?: number; force?: boolean }>,
+): Promise<Blob> {
+  ou.ensureBigger(duration, 0)
+  duration ??= 100
+  if (!force && duration < 20) {
+    throw new ou.OperationError('.fps-exceed-range-warn', [duration])
+  }
+  const frames = images.map((v) => v.frames).flat()
+  ou.ensureMinImageNum(frames)
+
+  const width = frames.map((v) => v.width).reduce((a, b) => Math.max(a, b))
+  const height = frames.map((v) => v.height).reduce((a, b) => Math.max(a, b))
+  let newImage: MemoryImage | null = null
+  for (const f of frames) {
+    const noFrameF = MemoryImage.from(f, true).convert({ numChannels: 4 })
+    const fSized = (() => {
+      if (width === f.width && height === f.height) return noFrameF
+      const scale = Math.min(width / f.width, height / f.height)
+      const scaleWidth = Math.round(f.width * scale)
+      const scaleHeight = Math.round(f.height * scale)
+      return Draw.compositeImage({
+        src: Transform.copyResize({
+          width: scaleWidth,
+          height: scaleHeight,
+          image: noFrameF,
+          interpolation: Interpolation.cubic,
+        }),
+        dst: new MemoryImage({ width, height, numChannels: 4 }),
+        center: true,
+      })
+    })()
+    fSized.frameDuration = duration
+    if (newImage) {
+      newImage.addFrame(fSized)
+    } else {
+      newImage = fSized
+    }
+  }
+  return ou.imageSave(newImage!)
+}
+
+export async function fourGrid(image: MemoryImage): Promise<Blob[]> {
+  return ou.cropToGrids(image, (w) => {
+    const a = Math.ceil(w / 2)
+    return [
+      [0, 0, a, a],
+      [a, 0, a * 2, a],
+      [0, a, a, a * 2],
+      [a, a, a * 2, a * 2],
+    ]
+  })
+}
+
+export async function nineGrid(image: MemoryImage): Promise<Blob[]> {
+  return ou.cropToGrids(image, (w) => {
+    const a = Math.ceil(w / 3)
+    return [
+      [0, 0, a, a],
+      [a, 0, a * 2, a],
+      [a * 2, 0, w, a],
+      [0, a, a, a * 2],
+      [a, a, a * 2, a * 2],
+      [a * 2, a, w, a * 2],
+      [0, a * 2, a, w],
+      [a, a * 2, a * 2, w],
+      [a * 2, a * 2, w, w],
+    ]
+  })
+}
+
+export async function horizontalJoin(
+  images: MemoryImage[],
+  _: Skia,
+  {
+    options: { spacing, bgColor, force },
+  }: ImageOperationOption<
+    any[],
+    { spacing?: number; bgColor?: string; force?: boolean }
+  >,
+): Promise<Blob> {
+  ou.ensureMinImageNum(images)
+  ou.warnAnimation(images, force)
+  spacing ??= 10
+  const bgColorObj = new ColorRgba8(
+    ...(bgColor ? ou.parseColor(bgColor) : ([0, 0, 0, 0] as ou.RGBAColorTuple)),
+  )
+
+  const height = Math.max(...images.map((v) => v.height))
+  const imagesNew = images.map((v) =>
+    Transform.copyResize({ image: v, height }),
+  )
+  const width = imagesNew.reduce((a, b) => a + b.width + spacing, 0) - spacing
+  const finalImg = new MemoryImage({ width, height, numChannels: 4 })
+  finalImg.clear(bgColorObj)
+  let offsetX = 0
+  imagesNew.forEach((v, i) => {
+    Draw.compositeImage({ src: v, dst: finalImg, dstX: offsetX })
+    offsetX += v.width + spacing
+  })
+  return ou.imageSave(finalImg)
+}
+
+export async function verticalJoin(
+  images: MemoryImage[],
+  _: Skia,
+  {
+    options: { spacing, bgColor, force },
+  }: ImageOperationOption<
+    any[],
+    { spacing?: number; bgColor?: string; force?: boolean }
+  >,
+): Promise<Blob> {
+  ou.ensureMinImageNum(images)
+  ou.warnAnimation(images, force)
+  spacing ??= 10
+  const bgColorObj = new ColorRgba8(
+    ...(bgColor ? ou.parseColor(bgColor) : ([0, 0, 0, 0] as ou.RGBAColorTuple)),
+  )
+
+  const width = Math.max(...images.map((v) => v.width))
+  const imagesNew = images.map((v) => Transform.copyResize({ image: v, width }))
+  const height = imagesNew.reduce((a, b) => a + b.height + spacing, 0) - spacing
+  const finalImg = new MemoryImage({ width, height, numChannels: 4 })
+  finalImg.clear(bgColorObj)
+  let offsetY = 0
+  imagesNew.forEach((v, i) => {
+    Draw.compositeImage({ src: v, dst: finalImg, dstY: offsetY })
+    offsetY += v.height + spacing
+  })
+  return ou.imageSave(finalImg)
 }

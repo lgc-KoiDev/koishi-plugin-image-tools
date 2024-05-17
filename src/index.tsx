@@ -23,6 +23,7 @@ import {
   zipBlobs,
 } from './utils'
 
+import enUSLocale from './locales/en-US.yml'
 import zhCNLocale from './locales/zh-CN.yml'
 
 import type {} from '@koishijs/plugin-notifier'
@@ -59,6 +60,8 @@ export const Config: Schema<Config> = Schema.intersect([
   ]).i18n({
     'zh-CN': zhCNLocale._config,
     zh: zhCNLocale._config,
+    'en-US': enUSLocale._config,
+    en: enUSLocale._config,
   }),
   HTTP.createConfig(),
 ])
@@ -82,6 +85,8 @@ export const errorHandle = async <
 export async function apply(ctx: Context, config: Config) {
   ctx.i18n.define('zh-CN', zhCNLocale)
   ctx.i18n.define('zh', zhCNLocale)
+  ctx.i18n.define('en-US', enUSLocale)
+  ctx.i18n.define('en', enUSLocale)
 
   if (existsSync(tmpDir)) {
     await rm(tmpDir, { recursive: true, force: true })

@@ -1,6 +1,105 @@
 commands:
   image-tools:
     description: 简单图片操作
+  flip-h:
+    description: 水平翻转图片
+  flip-v:
+    description: 垂直翻转图片
+  flip:
+    description: 水平垂直翻转图片
+  gray:
+    description: 灰度化图片
+  rotate:
+    description: 顺时针旋转图片
+    examples: |-
+      rotate 90 <image>
+  resize:
+    description: 缩放图片
+    examples: |-
+      resize 100x100 <image>
+      resize x100 <image>  # 仅指定目标高度
+      resize 50% <image>
+  crop:
+    description: 裁剪图片
+    examples: |-
+      resize 100x100 <image>
+      resize x100 <image>  # 仅指定目标高度
+      resize 2:1 <image>  # 指定目标比例
+  invert:
+    description: 图片反色
+  contour:
+    description: 轮廓化图片
+  emboss:
+    description: 浮雕化图片
+  blur:
+    description: 高斯模糊图片
+    options:
+      radius: 模糊半径，默认为 5
+  sharpen:
+    description: 锐化图片
+  pixelate:
+    description: 像素化图片
+    options:
+      size: 像素尺寸，默认为 8
+  color-mask:
+    description: 图片颜色滤镜
+    examples: |-
+      color-mask #ff0 <image>
+      color-mask "255,255,0" <image>
+  color-image:
+    description: 纯色图
+    options:
+      width: 图片宽度，默认 500
+      height: 图片高度，默认 500
+    examples: |-
+      color-image #ff0
+      color-image "255,255,0"
+  gradient-image:
+    description: 渐变图
+    options:
+      angle: 渐变角度，默认 0
+      width: 图片宽度，默认 500
+      height: 图片高度，默认 500
+    examples: |-
+      gradient-image -a 45 #f00 #ffff00 "0,0,255"
+  gif-rev:
+    description: GIF 倒放
+  gif-obv-rev:
+    description: GIF 正放倒放
+  gif-change-fps:
+    description: GIF 变速
+    options:
+      force: 忽略警告
+    examples: |-
+      gif-change-fps 0.5x <image>
+      gif-change-fps 50% <image>
+      gif-change-fps 25fps <image>
+      gif-change-fps 40ms <image>  # 设置每帧间隔时间
+  gif-split:
+    description: GIF 分解
+  gif-join:
+    description: GIF 合成
+    options:
+      duration: 每帧间隔，单位毫秒，默认 100
+      force: 忽略警告
+    examples: |-
+      gif-join -d 500 <...images>
+  four-grid:
+    description: 裁剪四宫格图片
+  nine-grid:
+    description: 裁剪九宫格图片
+  h-join:
+    description: 横向拼接图片
+    options:
+      spacing: 图片间距，默认 10
+      bgColor: 背景颜色，默认透明
+      force: 忽略警告
+  v-join:
+    description: 纵向拼接图片
+    options:
+      spacing: 图片间距，默认 10
+      bgColor: 背景颜色，默认透明
+      force: 忽略警告
 
 image-tools:
   errors:
@@ -16,6 +115,12 @@ image-tools:
     invalid-color: 无效的颜色值 {0}。示例：#ffffff；"rgb(255, 255, 255)"。
     alpha-not-supported: 此操作不支持指定颜色的透明度。
     invalid-angle: 指定的角度 {0} 无效。
+    fps-exceed-range-warn: |-
+      当每帧间隔小于 20ms 时（>= 50 FPS），GIF 可能无法正常显示。
+      请调整指令参数，或使用 -f 选项忽略该警告。
+      当前平均帧间隔：{0}ms
+    image-not-enough: 图片数量不足，至少需要 {0} 张。
+    image-animated-warn: 此操作不支持动图。如果你坚持要使用动图，本操作将会取动图的第一帧作为输入，请使用 -f 选项忽略该警告。
 
 _config:
   - $desc: 发送设置

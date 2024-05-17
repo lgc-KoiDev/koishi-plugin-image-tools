@@ -1,0 +1,137 @@
+commands:
+  image-tools:
+    description: Simple image operating
+  flip-h:
+    description: Flip image horizontally
+  flip-v:
+    description: Flip image vertically
+  flip:
+    description: Flip image horizontally and vertically
+  gray:
+    description: Gray scale image
+  rotate:
+    description: Rotate image
+    examples: |-
+      rotate 90 <image>
+  resize:
+    description: Resize image
+    examples: |-
+      resize 100x100 <image>
+      resize x100 <image>  # specify target height only
+      resize 50% <image>
+  crop:
+    description: Crop image
+    examples: |-
+      resize 100x100 <image>
+      resize x100 <image>  # specify target height only
+      resize 2:1 <image>  # specify target ratio
+  invert:
+    description: Invert image color
+  contour:
+    description: Contourize image
+  emboss:
+    description: Emboss image
+  blur:
+    description: Blur image
+    options:
+      radius: Blur radius, defaults to 5
+  sharpen:
+    description: Sharpen image
+  pixelate:
+    description: Pixelize image
+    options:
+      size: Pixel size, defaults to 8
+  color-mask:
+    description: Apply color mask to image
+    examples: |-
+      color-mask #ff0 <image>
+      color-mask "255,255,0" <image>
+  color-image:
+    description: Generate solid color image
+    options:
+      width: Image width, defaults to 500
+      height: Image height, defaults to 500
+    examples: |-
+      color-image #ff0
+      color-image "255,255,0"
+  gradient-image:
+    description: Generate gradient color image
+    options:
+      angle: Gradient angle, defaults to 0
+      width: Image width, defaults to 500
+      height: Image height, defaults to 500
+    examples: |-
+      gradient-image -a 45 #f00 #ffff00 "0,0,255"
+  gif-rev:
+    description: Reverse GIF
+  gif-obv-rev:
+    description: Obverse then reverse GIF
+  gif-change-fps:
+    description: Change GIF framerate
+    options:
+      force: Ignore warnings
+    examples: |-
+      gif-change-fps 0.5x <image>
+      gif-change-fps 50% <image>
+      gif-change-fps 25fps <image>
+      gif-change-fps 40ms <image>  # Set the time interval of each frame
+  gif-split:
+    description: Split GIF frames
+  gif-join:
+    description: Generate GIF from frames
+    options:
+      duration: Frame interval in milliseconds, defaults to 100
+      force: Ignore warnings
+    examples: |-
+      gif-join -d 500 <...images>
+  four-grid:
+    description: Crop image to 2x2 grid
+  nine-grid:
+    description: Crop image to 3x3 grid
+  h-join:
+    description: Horizontally join images
+    options:
+      spacing: Image spacing, defaults to 10
+      bgColor: Background color, defaults to transparent
+      force: Ignore warnings
+  v-join:
+    description: Vertically join images
+    options:
+      spacing: Image spacing, defaults to 10
+      bgColor: Background color, defaults to transparent
+      force: Ignore warnings
+
+image-tools:
+  errors:
+    missing-image: Missing image parameter.
+    fetch-image-failed: Failed to download image.
+    invalid-image: Invalid image file.
+    image-must-animated: Image must be animated.
+    zip-failed: Failed to create compressed file.
+    invalid-arg-format: Invalid argument format.
+    value-too-small: Parameter value {0} is too small, should be greater than {1}.
+    value-too-big: Parameter value {0} is too big, should be less than {1}.
+    invalid-range: Parameter value {0} is out of range, should be in {1} ~ {2}.
+    invalid-color: 'Invalid color value {0}. Example: #ffffff; "rgb(255, 255, 255)".'
+    alpha-not-supported: This operation does not support specifying the alpha of the color.
+    invalid-angle: Invalid angle {0}.
+    fps-exceed-range-warn: |-
+      When the frame interval is less than 20ms (>= 50 FPS), the GIF may not be displayed properly.
+      Please adjust the command parameters, or use the -f option to ignore this warning.
+      Current average frame interval: {0}ms
+    image-not-enough: Image count is not enough, at least {0} required.
+    image-animated-warn: This operation does not support animated images. If you want to use animated images, the first frame will be used as input. Please use the -f option to ignore this warning.
+
+_config:
+  - $desc: Message Sending Settings
+    sendOneByOne: Send images one by one before the number of output images exceeds `overflowThreshold`, instead of merging them into a single message.
+    overflowThreshold: The threshold number of images that triggers the sending method specified in `overflowSendType`.
+    overflowSendType:
+      $desc: |-
+        The method of sending when the number of output images exceeds `overflowThreshold`.  
+        **multi**: Send as multiple messages, with the maximum number of images per message being `overflowThreshold`;  
+        **forward**: Send as a merged forward message;  
+        **file**: Send as a compressed file.
+    oneByOneInForward: When `overflowSendType` is `forward`, send each image as a separate message in the merged forward message, instead of grouping them according to the maximum number of images per message specified by `overflowThreshold`.
+    zipFileType: The type of compressed file to use when `overflowSendType` is `file`.
+    useBase64SendFile: Whether to encode the file as base64 before sending when `overflowSendType` is `file`, otherwise use the local file path directly. Generally, it is not recommended to enable this.

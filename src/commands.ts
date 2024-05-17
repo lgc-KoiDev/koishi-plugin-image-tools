@@ -152,17 +152,66 @@ export const registeredCommands: ImageCommand[] = [
   },
   {
     name: 'gif-rev',
-    aliases: ['gif倒放', '倒放'],
+    aliases: ['gif倒放', 'GIF倒放', '倒放'],
     func: ops.gifReverse,
   },
   {
     name: 'gif-obv-rev',
-    aliases: ['gif正放倒放', '正放倒放'],
+    aliases: ['gif正放倒放', 'GIF正放倒放', '正放倒放'],
     func: ops.gifObverseReverse,
   },
   {
+    name: 'gif-change-fps',
+    aliases: ['gif变速', 'GIF变速', '变速'],
+    args: ['<fps:string>'],
+    options: [['force', '-f [force:boolean]']],
+    func: ops.gifChangeFps,
+  },
+  {
     name: 'gif-split',
-    aliases: ['gif分解'],
+    aliases: ['gif分解', '分解'],
     func: ops.gifSplit,
+  },
+  {
+    name: 'gif-join',
+    aliases: ['gif合成', 'GIF合成', '合成'],
+    options: [
+      ['duration', '-d [duration:number]'],
+      ['force', '-f [force:boolean]'],
+    ],
+    multiImages: true,
+    func: ops.gifJoin,
+  },
+  {
+    name: 'four-grid',
+    aliases: ['四宫格'],
+    func: ops.fourGrid,
+  },
+  {
+    name: 'nine-grid',
+    aliases: ['九宫格'],
+    func: ops.nineGrid,
+  },
+  {
+    name: 'h-join',
+    aliases: ['横向拼接', '水平拼接'],
+    options: [
+      ['spacing', '-s [spacing:number]'],
+      ['bgColor', '-c [bgColor:string]'],
+      ['force', '-f [force:boolean]'],
+    ],
+    multiImages: true,
+    func: ops.horizontalJoin,
+  },
+  {
+    name: 'v-join',
+    aliases: ['纵向拼接', '垂直拼接'],
+    options: [
+      ['spacing', '-s [spacing:number]'],
+      ['bgColor', '-c [bgColor:string]'],
+      ['force', '-f [force:boolean]'],
+    ],
+    multiImages: true,
+    func: ops.verticalJoin,
   },
 ]

@@ -2,6 +2,8 @@ import {
   ChannelOrder,
   ColorUtils,
   MemoryImage,
+  Rectangle,
+  Transform,
   decodeImageByMimeType,
   decodePng,
   encodePng,
@@ -133,6 +135,24 @@ export function ensureAnimation(image: MemoryImage): void {
   if (!image.hasAnimation) throw new OperationError('.image-must-animated')
 }
 
+export function ensureMinImageNum(images: MemoryImage[], num: number = 2) {
+  if (images.length < num) {
+    throw new OperationError('.image-not-enough', [num])
+  }
+}
+
+export function warnAnimation(images: MemoryImage[], optForce?: boolean) {
+  if (!optForce && images.some((v) => v.hasAnimation)) {
+    throw new OperationError('.image-animated-warn')
+  }
+}
+
+export function ensureBigger(value: number | undefined, min: number) {
+  if (value !== undefined && value < min) {
+    throw new OperationError('.value-too-small', [value, min])
+  }
+}
+
 export function matchRegExps<
   T,
   R extends RegExp = RegExp,
@@ -208,8 +228,8 @@ export function parseColor(color: string): RGBAColorTuple {
     [
       [
         /^#?(?<hex>(?:[0-9a-fA-F]{3,4}){1,2})$/,
-        (matchHex) => {
-          const { hex } = matchHex.groups!
+        (match) => {
+          const { hex } = match.groups!
           if (hex.length < 6) {
             const parseOneCharHex = (hex: string) => parseInt(hex.repeat(2), 16)
             return [
@@ -229,18 +249,16 @@ export function parseColor(color: string): RGBAColorTuple {
       ],
       [
         /^(rgba?)?\(?(?<r>\d{1,3})[,\s](?<g>\d{1,3})[,\s](?<b>\d{1,3})([,\s](?<a>\d{1,3}(\.\d)?))?\)?$/,
-        (matchRgb) => {
+        (match) => {
           const checkVal = (val: number) => {
             if (val < 0 || val > 255) errorThrower()
             return val
           }
-          const parsedA = matchRgb.groups!.a
-            ? parseFloat(matchRgb.groups!.a)
-            : null
+          const parsedA = match.groups!.a ? parseFloat(match.groups!.a) : null
           return [
-            checkVal(parseInt(matchRgb.groups!.r)),
-            checkVal(parseInt(matchRgb.groups!.g)),
-            checkVal(parseInt(matchRgb.groups!.b)),
+            checkVal(parseInt(match.groups!.r)),
+            checkVal(parseInt(match.groups!.g)),
+            checkVal(parseInt(match.groups!.b)),
             parsedA ? checkVal(parsedA < 1 ? parsedA * 255 : parsedA) : 255,
           ]
         },
@@ -487,4 +505,18 @@ export function colorMaskPilUtils(
     newImage.addFrame(processFrame(f))
   }
   return newImage
+}
+
+export type GridBox = [number, number, number, number]
+export function cropToGrids(
+  image: MemoryImage,
+  boxes: GridBox[] | ((size: number) => GridBox[]),
+) {
+  const size = Math.min(image.width, image.height)
+  image = Transform.copyResizeCropSquare({ image, size })
+  if (boxes instanceof Function) boxes = boxes(size)
+  const imgs = boxes.map(([x, y, w, h]) =>
+    Transform.copyCrop({ image, rect: new Rectangle(x, y, w, h) }),
+  )
+  return Promise.all(imgs.map((v) => imageSave(v)))
 }
