@@ -34,6 +34,7 @@ export async function rotate(
   _: Skia,
   { args: [angle] }: ImageOperationOption<[number]>,
 ): Promise<Blob> {
+  image = image.convert({ numChannels: 4 })
   return ou.imageSave(
     Transform.copyRotate({ image, angle, interpolation: Interpolation.cubic }),
   )
