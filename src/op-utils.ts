@@ -137,12 +137,13 @@ export function matchRegExps<
   T,
   R extends RegExp = RegExp,
   F extends (r: RegExpExecArray) => T = (r: RegExpExecArray) => T,
->(str: string, regexps: (readonly [R, F])[]): T {
+>(str: string, regexps: (readonly [R, F])[], errorThrower?: () => never): T {
   for (const [r, f] of regexps) {
     const m = r.exec(str)
     if (!m) continue
     return f(m)
   }
+  if (errorThrower) errorThrower()
   throw new OperationError('.invalid-arg-format')
 }
 
@@ -199,47 +200,54 @@ export function colorTupleToWebColor(color: ColorTuple): string {
 }
 
 export function parseColor(color: string): RGBAColorTuple {
-  const hexColorReg = /^#?(?<hex>(?:[0-9a-fA-F]{3,4}){1,2})$/
-  const matchHex = hexColorReg.exec(color)
-  if (matchHex) {
-    const { hex } = matchHex.groups!
-    if (hex.length < 6) {
-      const parseOneCharHex = (hex: string) => parseInt(hex.repeat(2), 16)
-      return [
-        parseOneCharHex(hex[0]),
-        parseOneCharHex(hex[1]),
-        parseOneCharHex(hex[2]),
-        hex.length === 4 ? parseOneCharHex(hex[3]) : 255,
-      ]
-    }
-    return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
-      hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255,
-    ]
+  const errorThrower = () => {
+    throw new OperationError('.invalid-color', [color])
   }
-
-  const rgbColorReg =
-    /^(rgba?)?\(?(?<r>\d{1,3})[,\s](?<g>\d{1,3})[,\s](?<b>\d{1,3})([,\s](?<a>\d{1,3}(\.\d)?))?\)?$/
-  const matchRgb = rgbColorReg.exec(color)
-  if (matchRgb) {
-    const checkVal = (val: number) => {
-      if (val < 0 || val > 255) {
-        throw new OperationError('.invalid-color', [color])
-      }
-      return val
-    }
-    const parsedA = matchRgb.groups!.a ? parseFloat(matchRgb.groups!.a) : null
-    return [
-      checkVal(parseInt(matchRgb.groups!.r)),
-      checkVal(parseInt(matchRgb.groups!.g)),
-      checkVal(parseInt(matchRgb.groups!.b)),
-      parsedA ? checkVal(parsedA < 1 ? parsedA * 255 : parsedA) : 255,
-    ]
-  }
-
-  throw new OperationError('.invalid-color', [color])
+  return matchRegExps(
+    color,
+    [
+      [
+        /^#?(?<hex>(?:[0-9a-fA-F]{3,4}){1,2})$/,
+        (matchHex) => {
+          const { hex } = matchHex.groups!
+          if (hex.length < 6) {
+            const parseOneCharHex = (hex: string) => parseInt(hex.repeat(2), 16)
+            return [
+              parseOneCharHex(hex[0]),
+              parseOneCharHex(hex[1]),
+              parseOneCharHex(hex[2]),
+              hex.length === 4 ? parseOneCharHex(hex[3]) : 255,
+            ]
+          }
+          return [
+            parseInt(hex.slice(0, 2), 16),
+            parseInt(hex.slice(2, 4), 16),
+            parseInt(hex.slice(4, 6), 16),
+            hex.length === 8 ? parseInt(hex.slice(6, 8), 16) : 255,
+          ]
+        },
+      ],
+      [
+        /^(rgba?)?\(?(?<r>\d{1,3})[,\s](?<g>\d{1,3})[,\s](?<b>\d{1,3})([,\s](?<a>\d{1,3}(\.\d)?))?\)?$/,
+        (matchRgb) => {
+          const checkVal = (val: number) => {
+            if (val < 0 || val > 255) errorThrower()
+            return val
+          }
+          const parsedA = matchRgb.groups!.a
+            ? parseFloat(matchRgb.groups!.a)
+            : null
+          return [
+            checkVal(parseInt(matchRgb.groups!.r)),
+            checkVal(parseInt(matchRgb.groups!.g)),
+            checkVal(parseInt(matchRgb.groups!.b)),
+            parsedA ? checkVal(parsedA < 1 ? parsedA * 255 : parsedA) : 255,
+          ]
+        },
+      ],
+    ],
+    errorThrower,
+  )
 }
 
 export function parseAngle(angle: string): number {
@@ -339,79 +347,79 @@ export function calcGradientLinePos(
 }
 
 // gpt & bing
-export function usePillowFilter(
-  image: MemoryImage,
-  range: [number, number],
-  div: number,
-  offset: number,
-  kernel: number[][],
-) {
-  const { width, height } = image
-  const [kxTotal, kyTotal] = range
+// export function usePillowFilter(
+//   image: MemoryImage,
+//   range: [number, number],
+//   div: number,
+//   offset: number,
+//   kernel: number[][],
+// ) {
+//   const { width, height } = image
+//   const [kxTotal, kyTotal] = range
 
-  if (kxTotal % 2 !== 1 || kyTotal % 2 !== 1) {
-    throw new TypeError('Invalid kernel range')
-  }
+//   if (kxTotal % 2 !== 1 || kyTotal % 2 !== 1) {
+//     throw new TypeError('Invalid kernel range')
+//   }
 
-  const kxHalf = Math.floor(kxTotal / 2)
-  const kyHalf = Math.floor(kyTotal / 2)
+//   const kxHalf = Math.floor(kxTotal / 2)
+//   const kyHalf = Math.floor(kyTotal / 2)
 
-  const procColorVal = (val: number) =>
-    Math.max(0, Math.min(255, Math.round(val / div + offset)))
+//   const procColorVal = (val: number) =>
+//     Math.max(0, Math.min(255, Math.round(val / div + offset)))
 
-  const processFrame = (frame: MemoryImage) => {
-    const newImage = new MemoryImage({
-      width,
-      height,
-      frameDuration: frame.frameDuration,
-      numChannels: 4,
-    })
+//   const processFrame = (frame: MemoryImage) => {
+//     const newImage = new MemoryImage({
+//       width,
+//       height,
+//       frameDuration: frame.frameDuration,
+//       numChannels: 4,
+//     })
 
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const a = frame.getPixel(x, y).a
-        if (!a) {
-          newImage.setPixelRgba(x, y, 0, 0, 0, 0)
-          continue
-        }
+//     for (let y = 0; y < height; y++) {
+//       for (let x = 0; x < width; x++) {
+//         const a = frame.getPixel(x, y).a
+//         if (!a) {
+//           newImage.setPixelRgba(x, y, 0, 0, 0, 0)
+//           continue
+//         }
 
-        let r = 0
-        let g = 0
-        let b = 0
-        for (let ky = -kyHalf; ky <= kyHalf; ky++) {
-          for (let kx = -kxHalf; kx <= kxHalf; kx++) {
-            const na = frame.getPixel(x, y).aNormalized
-            if (!na) continue
-            const nx = x + kx
-            const ny = y + ky
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-              const pixel = frame.getPixel(nx, ny)
-              const weight = kernel[ky + kyHalf][kx + kxHalf]
-              r += pixel.r * na * weight
-              g += pixel.g * na * weight
-              b += pixel.b * na * weight
-            }
-          }
-        }
-        newImage.setPixelRgba(
-          x,
-          y,
-          procColorVal(r),
-          procColorVal(g),
-          procColorVal(b),
-          a,
-        )
-      }
-    }
-    return newImage
-  }
+//         let r = 0
+//         let g = 0
+//         let b = 0
+//         for (let ky = -kyHalf; ky <= kyHalf; ky++) {
+//           for (let kx = -kxHalf; kx <= kxHalf; kx++) {
+//             const na = frame.getPixel(x, y).aNormalized
+//             if (!na) continue
+//             const nx = x + kx
+//             const ny = y + ky
+//             if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+//               const pixel = frame.getPixel(nx, ny)
+//               const weight = kernel[ky + kyHalf][kx + kxHalf]
+//               r += pixel.r * na * weight
+//               g += pixel.g * na * weight
+//               b += pixel.b * na * weight
+//             }
+//           }
+//         }
+//         newImage.setPixelRgba(
+//           x,
+//           y,
+//           procColorVal(r),
+//           procColorVal(g),
+//           procColorVal(b),
+//           a,
+//         )
+//       }
+//     }
+//     return newImage
+//   }
 
-  const newImage = processFrame(image)
-  for (const f of image.frames.slice(1)) {
-    newImage.addFrame(processFrame(f))
-  }
-  return newImage
-}
+//   const newImage = processFrame(image)
+//   for (const f of image.frames.slice(1)) {
+//     newImage.addFrame(processFrame(f))
+//   }
+//   return newImage
+// }
 
 // gpt
 export function colorMaskPilUtils(
