@@ -12,7 +12,7 @@ import {
   ImageCommand,
   registeredCommands,
 } from './commands'
-import * as ops from './operations'
+import * as ou from './op-utils'
 import {
   AvailableZipType,
   ZIP_MIME_TYPES,
@@ -72,7 +72,7 @@ export const errorHandle = async <
   try {
     return await func()
   } catch (e) {
-    if (e instanceof ops.OperationError) {
+    if (e instanceof ou.OperationError) {
       return <i18n path={e.i18nPath}>{e.i18nParams}</i18n>
     }
     throw e
@@ -92,10 +92,10 @@ export async function apply(ctx: Context, config: Config) {
 
   const fetchSources = async (sources: string[]) => {
     try {
-      return await Promise.all(sources.map((v) => ops.readImage(ctx.http, v)))
+      return await Promise.all(sources.map((v) => ou.readImage(ctx.http, v)))
     } catch (e) {
       ctx.logger.warn(e)
-      throw new ops.OperationError(
+      throw new ou.OperationError(
         HTTP.Error.is(e) ? '.fetch-image-failed' : '.invalid-image',
       )
     }
@@ -142,7 +142,7 @@ export async function apply(ctx: Context, config: Config) {
           zipPath = await zipBlobs(blobs, config.zipFileType)
         } catch (e) {
           ctx.logger.warn(e)
-          throw new ops.OperationError('.zip-failed')
+          throw new ou.OperationError('.zip-failed')
         }
         const fileName = path.basename(zipPath)
         return (
@@ -194,7 +194,7 @@ export async function apply(ctx: Context, config: Config) {
           lastArgValid ? lastArg.filter((v) => 'src' in v.attrs) : []
         ) as (h & { attrs: { src: string } })[]
         if (!imageArgs.length) {
-          throw new ops.OperationError('.missing-image')
+          throw new ou.OperationError('.missing-image')
         }
         const images = await fetchSources(imageArgs.map((v) => v.attrs.src))
 

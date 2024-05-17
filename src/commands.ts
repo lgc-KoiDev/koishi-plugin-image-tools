@@ -1,7 +1,7 @@
 import { MemoryImage } from 'image-in-browser'
 import { Command } from 'koishi'
 
-import * as ops from './operations'
+import * as ops from './ops'
 
 import type { Skia } from '@lgcnpm/koishi-plugin-skia-canvas'
 
