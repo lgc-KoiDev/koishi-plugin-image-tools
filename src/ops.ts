@@ -375,9 +375,7 @@ export async function horizontalJoin(
   )
 
   const height = Math.max(...images.map((v) => v.height))
-  const imagesNew = images.map((v) =>
-    Transform.copyResize({ image: v, height }),
-  )
+  const imagesNew = images.map((v) => Transform.copyResize({ image: v, height }))
   const width = imagesNew.reduce((a, b) => a + b.width + spacing, 0) - spacing
   const finalImg = new MemoryImage({ width, height, numChannels: 4 })
   finalImg.clear(bgColorObj)

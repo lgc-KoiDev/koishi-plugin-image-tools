@@ -69,10 +69,7 @@ export async function zipBlobs(
   )
 
   const tmpZipDir = path.join(tmpDir, 'compressed')
-  const tmpZipPath = path.join(
-    tmpZipDir,
-    `${name}-${folderId}.${fileType ?? 'zip'}`,
-  )
+  const tmpZipPath = path.join(tmpZipDir, `${name}-${folderId}.${fileType ?? 'zip'}`)
   try {
     if (!existsSync(tmpZipDir)) {
       await mkdir(tmpZipDir, { recursive: true })

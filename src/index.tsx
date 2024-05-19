@@ -44,16 +44,14 @@ export interface Config {
 export const Config: Schema<Config> = Schema.intersect([
   Schema.intersect([
     Schema.object({
-      sendOneByOne: Schema.computed(Schema.boolean().default(false)).default(
-        false,
-      ),
+      sendOneByOne: Schema.computed(Schema.boolean().default(false)).default(false),
       overflowThreshold: Schema.computed(Schema.number().default(9)).default(9),
       overflowSendType: Schema.computed(
         Schema.union(['multi', 'forward', 'file']).default('forward'),
       ).default('forward'),
-      oneByOneInForward: Schema.computed(
-        Schema.boolean().default(false),
-      ).default(false),
+      oneByOneInForward: Schema.computed(Schema.boolean().default(false)).default(
+        false,
+      ),
       zipFileType: Schema.union(['zip', '7z']).default('7z'),
       useBase64SendFile: Schema.boolean().default(false),
     }),
@@ -66,10 +64,7 @@ export const Config: Schema<Config> = Schema.intersect([
   HTTP.createConfig(),
 ])
 
-export const errorHandle = async <
-  R extends h.Fragment,
-  F extends () => Promise<R>,
->(
+export const errorHandle = async <R extends h.Fragment, F extends () => Promise<R>>(
   func: F,
 ): Promise<R> => {
   try {
@@ -110,8 +105,7 @@ export async function apply(ctx: Context, config: Config) {
     session: Session,
     blobs: Blob[],
   ): Promise<h.Fragment> => {
-    const toImageElem = async (v: Blob) =>
-      h.image(await v.arrayBuffer(), v.type)
+    const toImageElem = async (v: Blob) => h.image(await v.arrayBuffer(), v.type)
     const splitToMessages = (): Promise<h[]> =>
       Promise.all(
         [...chunks(blobs, overflowThreshold)].map(async (v) => (
@@ -185,8 +179,7 @@ export async function apply(ctx: Context, config: Config) {
       // koishi will automatically use quoted message as command arg
       const lastArg = cmdArgs[cmdArgs.length - 1]
       const lastArgValid = lastArg instanceof Array
-      const args =
-        ignoreImages || !lastArgValid ? cmdArgs : cmdArgs.slice(0, -1)
+      const args = ignoreImages || !lastArgValid ? cmdArgs : cmdArgs.slice(0, -1)
       const options = cmdOptions ?? {}
 
       const handleIgnoreImageCmd = async (imgCmd: IgnoreImageCommand) => {
@@ -237,8 +230,8 @@ export async function apply(ctx: Context, config: Config) {
         content: (
           <div>
             <p>
-              未检测到 7z 命令，当 <code>overflowSendType</code> 设为{' '}
-              <code>file</code> 时将会出错！
+              未检测到 7z 命令，当 <code>overflowSendType</code> 设为 <code>file</code>{' '}
+              时将会出错！
               <br />
               7z command not found, there will be an error when{' '}
               <code>overflowSendType</code> sets to <code>file</code>!

@@ -11,6 +11,8 @@ import {
 import { HTTP } from 'koishi'
 import gif from 'modern-gif'
 
+import { name } from './utils'
+
 import type { Canvas, Image, Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export class OperationError extends Error {
@@ -22,7 +24,7 @@ export class OperationError extends Error {
     public readonly i18nParams: any[] = [],
   ) {
     if (i18nPath.startsWith('.')) {
-      i18nPath = `image-tools.errors${i18nPath}`
+      i18nPath = `${name}.errors${i18nPath}`
     } else if (i18nPath.startsWith('^')) {
       i18nPath = i18nPath.replace('^', '.')
     }
@@ -123,9 +125,7 @@ export async function gifHelper(
     return process(img)
   }
   const frameCanvases = await Promise.all(
-    image.frames.map(
-      async (v) => [await processFrame(v), v.frameDuration] as const,
-    ),
+    image.frames.map(async (v) => [await processFrame(v), v.frameDuration] as const),
   )
   if (frameCanvases.length > 1) return canvasSaveGif(frameCanvases)
   return canvasSavePng(frameCanvases[0][0])
@@ -440,10 +440,7 @@ export function calcGradientLinePos(
 // }
 
 // gpt
-export function colorMaskPilUtils(
-  image: MemoryImage,
-  color: [number, number, number],
-) {
+export function colorMaskPilUtils(image: MemoryImage, color: [number, number, number]) {
   const { width, height } = image
   const [r, g, b] = color
   const rgbSum = r + g + b
