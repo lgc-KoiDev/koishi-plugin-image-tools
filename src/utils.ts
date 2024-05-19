@@ -28,8 +28,8 @@ export class CommandExecuteError extends Error {
   }
 }
 
-export function runCmd(cmd: string[], options?: { cwd: string }) {
-  return new Promise<void>((resolve, reject) => {
+export async function runCmd(cmd: string[], options?: { cwd: string }) {
+  return await new Promise<void>((resolve, reject) => {
     const proc = spawn(cmd[0], cmd.slice(1), {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: options?.cwd,
@@ -47,8 +47,7 @@ export async function is7zExist() {
     await runCmd(['7z'])
     return true
   } catch (e) {
-    if (e instanceof CommandExecuteError) return false
-    throw e
+    return false
   }
 }
 
