@@ -3,11 +3,11 @@
 <div align="center">
 
 <a href="https://koishi.chat/zh-CN/market/">
-  <img src="https://raw.githubusercontent.com/lgc2333/koishi-workspace/master/readme/koishi-plugin.png" width="180" height="180" alt="NoneBotPluginLogo">
+  <img src="https://raw.githubusercontent.com/lgc-KoiDev/readme/master/workspace/koishi-plugin.png" width="180" height="180" alt="NoneBotPluginLogo">
 </a>
 
 <p>
-  <img src="https://raw.githubusercontent.com/lgc2333/koishi-workspace/master/readme/KoishiPlugin.svg" width="240" alt="NoneBotPluginText">
+  <img src="https://raw.githubusercontent.com/lgc-KoiDev/readme/master/workspace/KoishiPlugin.svg" width="240" alt="NoneBotPluginText">
 </p>
 
 # Koishi-Plugin-Image-Tools
@@ -15,7 +15,7 @@
 _✨ 简单图片操作 Koishi 复刻版 ✨_
 
 <a href="./LICENSE">
-  <img src="https://img.shields.io/github/license/lgc2333/koishi-plugin-image-tools.svg" alt="license">
+  <img src="https://img.shields.io/github/license/lgc-KoiDev/koishi-plugin-image-tools.svg" alt="license">
 </a>
 <a href="https://www.npmjs.com/package/koishi-plugin-image-tools">
   <img src="https://img.shields.io/npm/v/koishi-plugin-image-tools" alt="pypi">
