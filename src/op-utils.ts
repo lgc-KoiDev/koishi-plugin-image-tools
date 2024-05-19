@@ -11,7 +11,7 @@ import {
 import { HTTP } from 'koishi'
 import gif from 'modern-gif'
 
-import type { Canvas, Image, Skia } from '@lgcnpm/koishi-plugin-skia-canvas'
+import type { Canvas, Image, Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export class OperationError extends Error {
   readonly name = 'OperationError'

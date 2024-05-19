@@ -27,7 +27,7 @@ import enUSLocale from './locales/en-US.yml'
 import zhCNLocale from './locales/zh-CN.yml'
 
 import type {} from '@koishijs/plugin-notifier'
-import type {} from '@lgcnpm/koishi-plugin-skia-canvas'
+import type {} from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export { name }
 export const inject = ['http', 'skia']

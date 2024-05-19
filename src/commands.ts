@@ -3,7 +3,7 @@ import { Command } from 'koishi'
 
 import * as ops from './ops'
 
-import type { Skia } from '@lgcnpm/koishi-plugin-skia-canvas'
+import type { Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export interface ImageCommandBase {
   name: string
