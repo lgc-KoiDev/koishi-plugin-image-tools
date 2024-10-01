@@ -46,8 +46,8 @@
   },
   "devDependencies": {
     "@types/omggif": "^1",
-    "@types/uzip": "^0",
-    "image-in-browser": "^2.7.1",
+    "@types/uzip": "^0.20201231.2",
+    "image-in-browser": "^3.2.0",
     "uzip": "^0.20201231.0"
   }
 }
