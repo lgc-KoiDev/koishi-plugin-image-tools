@@ -9,7 +9,7 @@ import {
   encodePng,
 } from 'image-in-browser'
 import { HTTP } from 'koishi'
-import gif from 'modern-gif'
+import * as gif from 'modern-gif'
 
 import { name } from './utils'
 
