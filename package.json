@@ -39,15 +39,15 @@
     "@cordisjs/element": "^0.1.0",
     "@koishijs/plugin-notifier": "^1.2.1",
     "@ltxhhz/koishi-plugin-skia-canvas": "^0.0.6",
-    "koishi": "^4.18.0"
+    "koishi": "^4.18.4"
   },
   "dependencies": {
-    "modern-gif": "^2.0.3"
+    "modern-gif": "^2.0.4"
   },
   "devDependencies": {
-    "@types/omggif": "^1",
+    "@types/omggif": "^1.0.5",
     "@types/uzip": "^0.20201231.2",
-    "image-in-browser": "^3.2.0",
+    "image-in-browser": "^3.2.1",
     "uzip": "^0.20201231.0"
   }
 }
