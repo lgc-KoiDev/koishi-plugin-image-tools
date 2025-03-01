@@ -39,7 +39,7 @@
     "@cordisjs/element": "^0.1.0",
     "@koishijs/plugin-notifier": "^1.2.1",
     "@ltxhhz/koishi-plugin-skia-canvas": "^0.0.6",
-    "koishi": "^4.18.4"
+    "koishi": "^4.18.7"
   },
   "dependencies": {
     "modern-gif": "^2.0.4"
