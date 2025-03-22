@@ -117,7 +117,7 @@ export async function apply(ctx: Context, config: Config) {
     if (blobs.length <= overflowThreshold) {
       const elements = await Promise.all(blobs.map(toImageElem))
       const sendOneByOne = session.resolve(config.sendOneByOne)
-      if (sendOneByOne) return elements.map((v) => <message>{v}</message>)
+      if (sendOneByOne) return elements.map((v) => <message>{[v]}</message>)
       return elements
     }
 
