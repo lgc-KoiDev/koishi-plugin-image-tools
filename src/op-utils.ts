@@ -488,8 +488,9 @@ export function colorMaskPilUtils(image: MemoryImage, color: [number, number, nu
           originalPixel.b,
         )
         // Combine the new hue with the original lightness and saturation
-        const [newR, newG, newB] = ColorUtils.hslToRgb(h, s, originalL)
-        newImage.setPixelRgb(x, y, newR, newG, newB)
+        const rgb = [] as any as [number, number, number]
+        ColorUtils.hslToRgb(h, s, originalL, rgb)
+        newImage.setPixelRgb(x, y, ...rgb)
       }
     }
 
