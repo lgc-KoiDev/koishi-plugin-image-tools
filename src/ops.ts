@@ -1,3 +1,4 @@
+import type { Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 import {
   ColorRgba8,
   Draw,
@@ -10,8 +11,6 @@ import {
 
 import { ImageOperationOption } from './commands'
 import * as ou from './op-utils'
-
-import type { Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export async function flipHorizontal(image: MemoryImage): Promise<Blob> {
   return ou.imageSave(Transform.flipHorizontal({ image }))

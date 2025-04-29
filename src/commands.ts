@@ -1,9 +1,8 @@
+import type { Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 import { MemoryImage } from 'image-in-browser'
 import { Command } from 'koishi'
 
 import * as ops from './ops'
-
-import type { Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export interface ImageCommandBase {
   name: string

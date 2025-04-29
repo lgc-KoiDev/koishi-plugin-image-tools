@@ -3,6 +3,8 @@ import { readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import type {} from '@koishijs/plugin-notifier'
+import type {} from '@ltxhhz/koishi-plugin-skia-canvas'
 import { MemoryImage } from 'image-in-browser'
 import { Command, Computed, Context, HTTP, Schema, Session, h } from 'koishi'
 
@@ -12,6 +14,8 @@ import {
   ImageCommand,
   registeredCommands,
 } from './commands'
+import enUSLocale from './locales/en-US.yml'
+import zhCNLocale from './locales/zh-CN.yml'
 import * as ou from './op-utils'
 import {
   AvailableZipType,
@@ -22,12 +26,6 @@ import {
   tmpDir,
   zipBlobs,
 } from './utils'
-
-import enUSLocale from './locales/en-US.yml'
-import zhCNLocale from './locales/zh-CN.yml'
-
-import type {} from '@koishijs/plugin-notifier'
-import type {} from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export { name }
 export const inject = ['http', 'skia']

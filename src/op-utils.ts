@@ -1,3 +1,4 @@
+import type { Canvas, Image, Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 import {
   ChannelOrder,
   ColorUtils,
@@ -12,8 +13,6 @@ import { HTTP } from 'koishi'
 import * as gif from 'modern-gif'
 
 import { name } from './utils'
-
-import type { Canvas, Image, Skia } from '@ltxhhz/koishi-plugin-skia-canvas'
 
 export class OperationError extends Error {
   readonly name = 'OperationError'
