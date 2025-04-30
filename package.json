@@ -36,9 +36,8 @@
     ]
   },
   "peerDependencies": {
-    "@cordisjs/element": "^0.1.0",
-    "@koishijs/plugin-notifier": "^1.2.1",
-    "@ltxhhz/koishi-plugin-skia-canvas": "^0.0.6",
+    "@ltxhhz/koishi-plugin-skia-canvas": "^0.0.8",
+    "@satorijs/element": "^3.1.7",
     "koishi": "^4.18.7"
   },
   "dependencies": {
@@ -49,5 +48,8 @@
     "@types/uzip": "^0.20201231.2",
     "image-in-browser": "^3.2.3",
     "uzip": "^0.20201231.0"
+  },
+  "optionalDependencies": {
+    "@koishijs/plugin-notifier": "^1.2.1"
   }
 }
