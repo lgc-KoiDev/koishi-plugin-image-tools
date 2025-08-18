@@ -42,7 +42,7 @@ export async function readGif(buf: ArrayBuffer): Promise<MemoryImage> {
       width,
       height,
       frameDuration: delay,
-      bytes: data,
+      bytes: data.buffer as ArrayBuffer,
       channelOrder: ChannelOrder.rgba,
     })
     if (image) {
@@ -68,7 +68,7 @@ export async function readImage(http: HTTP, src: string): Promise<MemoryImage> {
 
 export async function imageSavePng(image: MemoryImage): Promise<Blob> {
   const b = encodePng({ image, singleFrame: true })
-  return new Blob([b], { type: 'image/png' })
+  return new Blob([b.buffer as ArrayBuffer], { type: 'image/png' })
 }
 
 export async function imageSaveGif(image: MemoryImage): Promise<Blob> {
@@ -78,7 +78,7 @@ export async function imageSaveGif(image: MemoryImage): Promise<Blob> {
     width,
     height,
     frames: image.frames.map((f) => ({
-      data: f.getBytes({ order: ChannelOrder.rgba })!,
+      data: f.getBytes({ order: ChannelOrder.rgba })!.buffer as ArrayBuffer,
       delay: f.frameDuration,
     })),
   })
@@ -90,7 +90,9 @@ export async function imageSave(image: MemoryImage): Promise<Blob> {
 }
 
 export async function canvasSavePng(canvas: Canvas): Promise<Blob> {
-  return new Blob([await canvas.toBuffer('png')], { type: 'image/png' })
+  return new Blob([(await canvas.toBuffer('png')).buffer as ArrayBuffer], {
+    type: 'image/png',
+  })
 }
 
 export async function canvasSaveGif(
