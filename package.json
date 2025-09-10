@@ -38,7 +38,7 @@
   "peerDependencies": {
     "@ltxhhz/koishi-plugin-skia-canvas": "^0.0.10",
     "@satorijs/element": "^3.1.8",
-    "koishi": "^4.18.8"
+    "koishi": "^4.18.9"
   },
   "dependencies": {
     "modern-gif": "^2.0.4"
